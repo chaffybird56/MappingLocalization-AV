@@ -153,13 +153,6 @@ Observed during lab playback and consistent with the documents:
 * **Heading stabilization** from IMU yaw reduces rotational drift; small translation drift may misalign loop closures (expected without scan‑matching).
 * **Resolution trade‑off:** $0.05\!\text{ m}$–$0.10\!\text{ m}$ per cell balances crispness vs. compute.
 
-Suggested visuals to add later (replace with real uploads):
-
-```markdown
-![RViz — live mapping](RVIZ_SCREENSHOT_URL)
-![Final occupancy grid](FINAL_MAP_URL)
-```
-
 ---
 
 ## 🧰 Practical parameters (typical)
