@@ -33,7 +33,7 @@ Mapping operates in a consistent set of coordinate frames:
 
 <!-- Fig 1 (from lab Fig 5): kinematic bicycle pose definition in odom/base_link. Replace the URL below after dragging the image into the README. -->
 
-![Fig 1 – Vehicle pose and frames (odom vs base\_link)](FIG1_PLACEHOLDER_URL)
+<img width="716" height="422" alt="SCR-20250921-lraz" src="https://github.com/user-attachments/assets/557e761b-5474-4ca3-ae2d-1319fa63c426" />
 
 ---
 
@@ -77,11 +77,11 @@ An **occupancy grid** discretizes the plane into cells $m_{ij}$ of size **resolu
 
 <!-- Fig 2 (from lab Fig 6): grid & frames with ray projection. Replace URL after dropping the image. -->
 
-![Fig 2 – Occupancy grid in odom, LiDAR rays in laser, and projection](FIG2_PLACEHOLDER_URL)
+<img width="745" height="531" alt="SCR-20250921-lrei" src="https://github.com/user-attachments/assets/fb3e2a15-66c8-4108-8ccc-a82362c7f249" />
 
 <!-- Fig 3 (from lab Fig 7): inverse sensor model (free/occupied/unknown coloring). Replace URL after dropping the image. -->
 
-![Fig 3 – Inverse sensor model (free/occupied/unknown)](FIG3_PLACEHOLDER_URL)
+<img width="722" height="562" alt="SCR-20250921-lrfe" src="https://github.com/user-attachments/assets/616cf8ff-7911-4044-98bc-3daf7c56bf57" />
 
 ### Log‑odds update (probabilistic fusion)
 
