@@ -6,178 +6,181 @@
 
 ## 🚗 Overview
 
-This project implements the classical **occupancy grid mapping** pipeline on a small autonomous platform. The mapper consumes:
+This project implements the classical occupancy‑grid mapping pipeline on a small autonomous platform. The mapper consumes:
 
-* **Localization:** wheel odometry for $x,y$ translation and **IMU yaw** for heading ($\theta$)
-* **Perception:** 2‑D **LiDAR** scan returns (ranges and angles)
+* Localization: wheel odometry for x,y translation and IMU yaw for heading (θ)
+* Perception: 2‑D LiDAR scan returns (ranges and angles)
 
-and produces a planar grid in the fixed **odometry** frame (`odom`) whose cells encode the probability of being **occupied**, **free**, or **unknown**.
+and produces a planar grid in the fixed odometry frame (`odom`) whose cells encode the probability of being occupied, free, or unknown.
 
-The repository contains:
+Big picture. The vehicle drives, the LiDAR sends out many straight‑line beams each cycle, and the mapper converts what those beams “saw” into colored squares on a grid (free along the beam, occupied where it hits). Accumulating evidence over time sharpens the map.
 
-* `OccupancyGridMapping_.py` – ROS node (Python) that subscribes to Odometry and LaserScan, updates log‑odds for each cell, and publishes a `nav_msgs/OccupancyGrid`.
-* `expermient_cpp_.txt` – the wheel‑odometry (C++) logic used in a prior lab; included here for context.
-* `Activity4_.bag` – example rosbag recorded during mapping (for playback/inspection).
+Repository layout:
+
+* `OccupancyGridMapping_.py` — ROS node (Python) that subscribes to Odometry and LaserScan, updates log‑odds per cell, and publishes a `nav_msgs/OccupancyGrid`.
+* `expermient_cpp_.txt` — wheel‑odometry (C++) logic used in a prior lab; included for context.
+* `Activity4_.bag` — example rosbag recorded during mapping (for playback/inspection).
 
 ---
 
 ## 🔧 Platform & Frames (ROS tf)
 
-Mapping operates in a consistent set of coordinate frames:
+Quick ROS primer (context).
 
-* **`odom`** – fixed world frame for the session (map is published in this frame).
-* **`base_link`** – body frame attached to the vehicle’s rear axle center.
-* **`laser`** – LiDAR frame (known static transform to `base_link`).
+* ROS provides a pub/sub system for robot data. Programs are nodes; they exchange typed messages on named topics (e.g., `/scan` for LiDAR, `/odom` for wheel+IMU pose).
+* A TF tree tracks coordinate frames (e.g., `odom → base_link → laser`). TF lets any node transform points between frames with correct timing.
+* A map in this project is a `nav_msgs/OccupancyGrid` (a 2‑D array with metadata).
 
-**Pose state.** The vehicle pose in `odom` is $X=[x\ y\ \theta]^T$. Wheel odometry supplies $x,y$; IMU supplies $\theta$.
+Frames used here.
 
-<!-- Fig 1 (from lab Fig 5): kinematic bicycle pose definition in odom/base_link. Replace the URL below after dragging the image into the README. -->
+* `odom` — fixed world frame for the session (the grid is published here).
+* `base_link` — body frame attached to the vehicle’s chassis.
+* `laser` — LiDAR frame (static transform from `base_link`).
 
-<img width="716" height="422" alt="SCR-20250921-lraz" src="https://github.com/user-attachments/assets/557e761b-5474-4ca3-ae2d-1319fa63c426" />
+Pose state. The vehicle pose in `odom` is X = \[x, y, θ]ᵀ. Wheel odometry supplies x,y; IMU provides θ.
+
+![Fig 1 — Vehicle pose & frames (odom/base\_link/laser)](https://github.com/user-attachments/assets/557e761b-5474-4ca3-ae2d-1319fa63c426) <sub><b>Fig 1.</b> Coordinate frames and pose definition. The map is attached to <code>odom</code>; LiDAR originates in <code>laser</code>.</sub>
 
 ---
 
 ## 🧭 Localization (Wheel + IMU yaw)
 
-The kinematic bicycle model gives the continuous‑time motion
+What “odometry” means here. Odometry estimates pose by integrating measured motion: wheel travel gives a forward speed; steering sets the turn rate; IMU yaw provides absolute heading. Heading from the IMU avoids accumulating gyro drift and stabilizes geometry for mapping.
 
-$$
-\dot x = v_s\cos\theta,\quad\dot y = v_s\sin\theta,\quad \dot\theta = \frac{v_s}{\ell}\tan\delta,
-$$
+Kinematic bicycle model (continuous time):
 
-with speed $v_s$, steering angle $\delta$, and wheelbase $\ell$. Discrete integration (Euler) updates translation, while **heading** is read directly from the IMU yaw (after subtracting the initial bias $\theta_0$):
+* ẋ = vₛ · cos θ
+* ẏ = vₛ · sin θ
+* θ̇ = (vₛ/ℓ) · tan δ
 
-$$
-\begin{aligned}
- x_{k+1}&=x_k + \Delta t_k\,v_{s,k}\cos\theta_k,\\
- y_{k+1}&=y_k + \Delta t_k\,v_{s,k}\sin\theta_k,\\
- \theta_k&=\text{yaw}^{\text{IMU}}_k-\theta_0.
-\end{aligned}
-$$
+with speed vₛ, steering angle δ, and wheelbase ℓ.
 
-This reduces **drift** from integrating angular rate and keeps `odom→base_link` consistent over short horizons.
+Discrete updates (Euler) advance translation; heading is taken from IMU yaw after removing the initial bias θ₀:
 
-> The C++ snippet in `expermient_cpp_.txt` shows this wheel/IMU fusion and publishes both a TF (`odom→base_link`) and a `nav_msgs/Odometry` message.
+* xₖ₊₁ = xₖ + Δtₖ · vₛ,ₖ · cos θₖ
+* yₖ₊₁ = yₖ + Δtₖ · vₛ,ₖ · sin θₖ
+* θₖ   = yaw(IMU)ₖ − θ₀
+
+The C++ excerpt in `expermient_cpp_.txt` publishes both a TF (`odom→base_link`) and `nav_msgs/Odometry` with this fusion.
 
 ---
 
-## 🗺️ Occupancy Grid Mapping – Intuition
+## 🗺️ Occupancy Grid Mapping — intuition first
 
-An **occupancy grid** discretizes the plane into cells $m_{ij}$ of size **resolution** (meters/cell). Each cell stores $p(m_{ij})$, the probability of being occupied.
+An occupancy grid divides the plane into small cells (meters per cell). Each cell stores a belief p(mᵢⱼ) that something solid occupies that square.
 
-* If $p(m_{ij})\ge p_{\text{occ}}$, the cell is **occupied**.
-* If $p(m_{ij})\le p_{\text{free}}$, the cell is **free**.
-* Otherwise it is **unknown**.
+How LiDAR evidence maps to cells. For any cell center, the algorithm picks the closest LiDAR beam to that direction and reasons:
 
-**Ray casting (inverse sensor model).** For the current pose $x_k=(\theta_k, d^o_{b,k})$ and LiDAR scan $z_k$, each cell chooses the **closest ray** to the line from the LiDAR origin to the cell center. Conditioned on that ray:
+* along the beam before the hit → free;
+* the cell containing the hit → occupied;
+* just beyond the hit → unknown.
 
-* the cell is **occupied** if the measured range terminates **inside** the cell,
-* the cell is **free** if the measured range is **beyond** the cell,
-* otherwise **unknown**.
+![Fig 2 — Grid in odom, LiDAR rays in laser, and projection to cells](https://github.com/user-attachments/assets/fb3e2a15-66c8-4108-8ccc-a82362c7f249) <sub><b>Fig 2.</b> Cells are updated by projecting LiDAR rays from <code>laser</code> into the grid in <code>odom</code>.</sub>
 
-<!-- Fig 2 (from lab Fig 6): grid & frames with ray projection. Replace URL after dropping the image. -->
-
-<img width="745" height="531" alt="SCR-20250921-lrei" src="https://github.com/user-attachments/assets/fb3e2a15-66c8-4108-8ccc-a82362c7f249" />
-
-<!-- Fig 3 (from lab Fig 7): inverse sensor model (free/occupied/unknown coloring). Replace URL after dropping the image. -->
-
-<img width="722" height="562" alt="SCR-20250921-lrfe" src="https://github.com/user-attachments/assets/616cf8ff-7911-4044-98bc-3daf7c56bf57" />
-
-### Log‑odds update (probabilistic fusion)
-
-Using log‑odds $\ell(y)=\log\tfrac{p(y)}{1-p(y)}$, the recursive update per cell is
-
-$$
-\ell\big(m_{ij}\mid z_{0:k},x_{0:k}\big) \;=\; \underbrace{\ell\big(m_{ij}\mid z_k,x_k\big)}_{\text{inverse sensor}}\; +\; \underbrace{\ell\big(m_{ij}\mid z_{0:k-1},x_{0:k-1}\big)}_{\text{prior}} \; -\; \ell(m_{ij}).
-$$
-
-With an **uninformative prior** $p(m_{ij})=0.5\Rightarrow\ell(m_{ij})=0$, this becomes a simple accumulate‑and‑threshold scheme. Probabilities recover as
-$p(y)=\frac{1}{1+e^{-\ell(y)}}.$
+![Fig 3 — Inverse sensor model: along‑ray cells free, hit cell occupied](https://github.com/user-attachments/assets/616cf8ff-7911-4044-98bc-3daf7c56bf57) <sub><b>Fig 3.</b> Inverse sensor model: free along the ray (before range), occupied at the terminal cell, unknown past the hit.</sub>
 
 ---
 
-## 🧩 Mapper Pipeline (what the node does)
+## 🧮 From probabilities to log‑odds (and back)
 
-1. **Subscribe** to `nav_msgs/Odometry` (pose in `odom`) and `sensor_msgs/LaserScan` (ranges $r_n$, angles $\alpha_n$).
-2. **Cache pose** $x_k$ on odom callback; **process scan** on laser callback.
-3. For each cell center $c_{ij}$:
+Directly adding probabilities is awkward. Each cell instead holds log‑odds
 
-   * Transform $c_{ij}$ into the LiDAR frame using `odom→base_link→laser` tf.
-   * Find closest beam index $n^*$ to the bearing of $c_{ij}$.
-   * Apply the **inverse sensor model** with constants $p_{\text{occ}}, p_{\text{free}}, p_{\text{unk}}=0.5$.
-   * **Accumulate log‑odds** and clamp to $[\ell_{\min},\ell_{\max}]$ to avoid saturation.
-4. **Publish** a `nav_msgs/OccupancyGrid` with width/height/resolution/origin, converting log‑odds to {100=occupied, 0=free, −1=unknown}.
+* ℓ = log(p/(1 − p))
 
-### Minimal pseudocode
+The recursive update per cell is
+
+* ℓₜ(mᵢⱼ) = ℓₜ₋₁(mᵢⱼ) + ℓ(mᵢⱼ | zₜ, xₜ) − ℓ₀(mᵢⱼ)
+
+With an uninformative prior (p₀ = 0.5 ⇒ ℓ₀ = 0), this becomes adding a negative constant for free cells and a positive constant for occupied cells, with clamping to \[ℓmin, ℓmax]. Probability recovery uses p = 1/(1 + e^(−ℓ)).
+
+---
+
+## 🧩 Mapper pipeline (what the node actually does)
+
+1. Subscribe to `nav_msgs/Odometry` (pose in `odom`) and `sensor_msgs/LaserScan` (ranges rₙ, angles αₙ).
+2. Cache pose xₖ on odom callback; process scan on laser callback.
+3. For each cell center cᵢⱼ: transform to the LiDAR frame, select nearest beam, compare distance d to measured range r, and add the appropriate log‑odds increment (free / occupied / unknown). Clamp values.
+4. Publish `nav_msgs/OccupancyGrid`: set `info.resolution`, `info.width/height`, `info.origin` (pose of cell (0,0) in `odom`), and row‑major `data` where 100 = occupied, 0 = free, −1 = unknown.
+
+### Minimal pseudocode (annotated)
 
 ```python
-# inside OccupancyGridMapping_.py
-for each lidar_callback(scan):
-    pose = latest_odom_pose  # (x, y, theta) in 'odom'
-    for each cell (i,j):
-        c_odom = origin + (i*res, j*res)
-        c_laser = tf_odom_to_laser(pose).inverse() @ c_odom
-        phi = atan2(c_laser.y, c_laser.x)
-        n = nearest_ray_index(phi, scan.angle_min, scan.angle_increment)
-        r = scan.ranges[n]
-        d = hypot(c_laser.x, c_laser.y)
-        if hit_inside_cell(r, d, res):       l_ij += logit(p_occ)
-        elif r > d + margin:                 l_ij += logit(p_free)
-        else:                                l_ij += logit(0.5)
-    publish_occupancy_grid(L = l)
+# OccupancyGridMapping_.py (sketch)
+def laser_cb(scan):
+    pose = latest_odom_pose           # (x, y, theta) in 'odom'
+    T_odom_laser = tf_odom_to_laser(pose)
+    for (i, j) in all_grid_cells:
+        c_odom  = origin_xy + np.array([i, j]) * res
+        c_laser = inv(T_odom_laser) @ to_homog(c_odom)
+        phi     = atan2(c_laser.y, c_laser.x)
+        n       = nearest_index(phi, scan.angle_min, scan.angle_increment)
+        r       = scan.ranges[n]
+        d       = hypot(c_laser.x, c_laser.y)
+        if hit_inside_cell(r, d, res):   L[i, j] = clamp(L[i, j] + logit(p_occ))
+        elif r > d + margin:             L[i, j] = clamp(L[i, j] + logit(p_free))
+        # else unknown
+    publish_grid(L)
 ```
-
-> The full implementation in `OccupancyGridMapping_.py` batches these steps efficiently, respects message timestamps, and uses row‑major indexing for `info.width × info.height`.
 
 ---
 
-## 🧪 Results (bag playback & expected behavior)
+## 🧪 Expected behavior (qualitative)
 
-* During a hallway drive with cardboard obstacles, the map progressively **carves free space** along traversed beams and **marks obstacles** where returns terminate.
-* IMU‑based heading significantly reduces yaw drift; residual translation drift appears as slight mis‑alignment on loop closures (expected without scan‑matching).
+Observed during lab playback and consistent with the documents:
 
-Consider adding the following visuals (drop them into the README and replace the placeholders):
+* Free‑space fans accumulate as the platform moves, carving corridors of free cells.
+* Obstacle rims appear at beam terminations (walls, carts, cardboard).
+* Unknown regions persist where no beam ever passed (behind obstacles, unobserved corners).
+* Heading stabilization from IMU yaw reduces rotational drift; small translation drift may misalign loop closures (expected without scan‑matching).
+* Resolution trade‑off: 0.05–0.10 m/cell balances crispness vs. compute.
 
-* **RViz screenshot** showing the `Map` display, `TF` tree (`odom` & `base_link`), and the evolving grid.
-* **Final map snapshot** after a loop.
-
-Placeholders to replace once images are uploaded:
-
-* `RVIZ_SCREENSHOT_URL`
-* `FINAL_MAP_URL`
-
-Example Markdown (leave until links are available):
+Suggested visuals to add later (replace with real uploads):
 
 ```markdown
-![RViz – live mapping](RVIZ_SCREENSHOT_URL)
+![RViz — live mapping](RVIZ_SCREENSHOT_URL)
 ![Final occupancy grid](FINAL_MAP_URL)
 ```
 
 ---
 
-## 📁 Message & Parameter Notes
+## 🧰 Practical parameters (typical)
 
-* **`nav_msgs/OccupancyGrid`** fields used: `info.resolution` (m/cell), `info.width/height` (cols/rows), `info.origin` (grid (0,0) in `odom`), `header.frame_id='odom'`.
-* **Thresholds**: `p_occ > 0.5`, `p_free < 0.5`, unknown = 0.5. Tune `p_occ`, `p_free`, grid **resolution**, and map **width/height** to balance detail vs compute.
-* **Clamping**: cap log‑odds to `[ℓ_min, ℓ_max]` to avoid irrecoverable saturation from repeated updates.
-
----
-
-## 📷 Figure placeholders (to be replaced with GitHub attachment links)
-
-Replace the three placeholders below using the **drag‑and‑drop** method (GitHub will insert a unique URL). These correspond to Lab Figs 5–7 but are renumbered here as Figs 1–3.
-
-* `FIG1_PLACEHOLDER_URL` – *Vehicle pose & frames (odom vs base\_link)*
-* `FIG2_PLACEHOLDER_URL` – *Grid in `odom` and LiDAR projection*
-* `FIG3_PLACEHOLDER_URL` – *Inverse sensor model (free/occupied/unknown)*
+* `resolution`: 0.05–0.10 m/cell
+* `p_occ`: 0.65–0.75  → ℓ\_occ = logit(p\_occ)
+* `p_free`: 0.30–0.45 → ℓ\_free = logit(p\_free) (negative)
+* `l_min`, `l_max`: \[−4.0, +4.0]
+* `margin`: ≈ 0.5 × resolution
+* `frame_id`: `'odom'` for the published grid; ensure TF tree is consistent
 
 ---
 
-* Why use **IMU yaw** directly? Eliminates integrating noisy gyro and limits drift in heading, which strongly affects mapping geometry.
-* Limitations: assumes **static** world and **known** poses; moving obstacles and odometry drift cause artifacts. Next steps include **scan‑matching** (ICP), **loop closure**, or full **SLAM**.
+## 🧾 Message & data conventions
+
+* Grid indexing is row‑major: `data[row*width + col]`.
+* Origin (`info.origin`) stores the pose of cell (0,0) in `odom`. Sliding windows require updating this origin.
+* Unknown cells (−1) remain until evidence arrives; no prior is injected.
+
+---
+
+## 🗣️ Glossary (quick context)
+
+* LiDAR beam — a ray with known angle and measured range.
+* Inverse sensor model — rule mapping a beam’s geometry to cell beliefs.
+* Log‑odds — ℓ = log(p/(1−p)); turns probabilistic fusion into addition.
+* Bresenham / ray‑tracing — integer grid traversal visiting all crossed cells.
+* TF — ROS transform system between frames (e.g., `odom→base_link→laser`).
+
+---
+
+## 📚 How this ties together
+
+1. Pose from wheel+IMU determines the LiDAR origin in `odom`.
+2. Each scan is a bundle of rays; intersecting them with the grid yields free and occupied evidence.
+3. Log‑odds accumulate evidence over time, resisting noise and enabling correction.
+4. The published OccupancyGrid feeds planners, localizers, and RViz visualization.
 
 ---
 
 ## License
 
-Released under the **MIT License** — see [LICENSE](LICENSE).
+Released under the MIT License — see [LICENSE](LICENSE).
