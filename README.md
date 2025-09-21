@@ -57,13 +57,13 @@ $$
 
 with speed $v_s$, steering angle $\delta$, and wheelbase $\ell$.
 
-**Discrete updates (Euler) with IMU yaw for heading):**
+**Discrete updates (Euler) with IMU yaw for heading:**
 
 $$
 \begin{aligned}
  x_{k+1}&=x_k + \Delta t_k\,v_{s,k}\cos\theta_k,\\
  y_{k+1}&=y_k + \Delta t_k\,v_{s,k}\sin\theta_k,\\
- \theta_k&=\operatorname{yaw}^{\text{IMU}}_k-\theta_0\, .
+ \theta_k&=\text{yaw}^{\mathrm{IMU}}_{k}-\theta_0\, .
 \end{aligned}
 $$
 
@@ -121,7 +121,7 @@ $$
 ```python
 # OccupancyGridMapping_.py (sketch)
 def laser_cb(scan):
-    pose = latest_odom_pose           # (x, y, theta) in 'odom'
+    pose = latest_odom_pose  # (x, y, theta) in 'odom'
     T_odom_laser = tf_odom_to_laser(pose)
     for (i, j) in all_grid_cells:
         c_odom  = origin_xy + np.array([i, j]) * res
@@ -130,8 +130,10 @@ def laser_cb(scan):
         n       = nearest_index(phi, scan.angle_min, scan.angle_increment)
         r       = scan.ranges[n]
         d       = hypot(c_laser.x, c_laser.y)
-        if hit_inside_cell(r, d, res):   L[i, j] = clamp(L[i, j] + logit(p_occ))
-        elif r > d + margin:             L[i, j] = clamp(L[i, j] + logit(p_free))
+        if hit_inside_cell(r, d, res):
+            L[i, j] = clamp(L[i, j] + logit(p_occ))
+        elif r > d + margin:
+            L[i, j] = clamp(L[i, j] + logit(p_free))
         # else unknown
     publish_grid(L)
 ```
@@ -160,8 +162,8 @@ Suggested visuals to add later (replace with real uploads):
 ## 🧰 Practical parameters (typical)
 
 * `resolution`: **0.05–0.10 m/cell**
-* `p_occ`: **0.65–0.75**  → $\ell_{\text{occ}} = \operatorname{logit}(p_{\text{occ}})$
-* `p_free`: **0.30–0.45** → $\ell_{\text{free}} = \operatorname{logit}(p_{\text{free}})$ (negative)
+* `p_occ`: **0.65–0.75**  → $\ell_{\text{occ}} = \log\!\frac{p_{\text{occ}}}{1-p_{\text{occ}}}$
+* `p_free`: **0.30–0.45** → $\ell_{\text{free}} = \log\!\frac{p_{\text{free}}}{1-p_{\text{free}}}$ (negative)
 * `l_min`, `l_max`: **\[−4.0, +4.0]**
 * `margin`: \~ **0.5 × resolution**
 * `frame_id`: `'odom'` for the published grid; ensure TF tree is consistent
