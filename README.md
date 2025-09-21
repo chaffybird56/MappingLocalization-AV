@@ -39,7 +39,8 @@ Repository layout:
 
 **Pose state.** The vehicle pose in `odom` is $X=[x\ y\ \theta]^T$. Wheel odometry supplies $x,y$; IMU provides $\theta$.
 
-![Fig 1 — Vehicle pose & frames (odom/base\_link/laser)](https://github.com/user-attachments/assets/557e761b-5474-4ca3-ae2d-1319fa63c426) <sub><b>Fig 1.</b> Coordinate frames and pose definition. The map is attached to <code>odom</code>; LiDAR originates in <code>laser</code>.</sub>
+<p align="center"><img src="https://github.com/user-attachments/assets/557e761b-5474-4ca3-ae2d-1319fa63c426" width="500" alt="Fig 1 — Vehicle pose & frames (odom/base_link/laser)" /></p>
+<sub><b>Fig 1.</b> Coordinate frames and pose definition. The map is attached to <code>odom</code>; LiDAR originates in <code>laser</code>.</sub>
 
 ---
 
@@ -67,7 +68,7 @@ $$
 \end{aligned}
 $$
 
-The C++ excerpt in `expermient_cpp_.txt` publishes both a TF (odom to base_link) and `nav_msgs/Odometry` with this fusion.
+The C++ excerpt in `expermient_cpp_.txt` publishes both a TF ($\text{odom}\to\text{base\_link}$) and `nav_msgs/Odometry` with this fusion.
 
 ---
 
@@ -81,9 +82,11 @@ An **occupancy grid** divides the plane into small cells (meters per cell). Each
 * the **cell containing the hit** → **occupied**;
 * just beyond the hit → **unknown**.
 
-![Fig 2 — Grid in odom, LiDAR rays in laser, and projection to cells](https://github.com/user-attachments/assets/fb3e2a15-66c8-4108-8ccc-a82362c7f249) <sub><b>Fig 2.</b> Cells are updated by projecting LiDAR rays from <code>laser</code> into the grid in <code>odom</code>.</sub>
+<p align="center"><img src="https://github.com/user-attachments/assets/fb3e2a15-66c8-4108-8ccc-a82362c7f249" width="500" alt="Fig 2 — Grid in odom, LiDAR rays in laser, and projection to cells" /></p>
+<sub><b>Fig 2.</b> Cells are updated by projecting LiDAR rays from <code>laser</code> into the grid in <code>odom</code>.</sub>
 
-![Fig 3 — Inverse sensor model: along‑ray cells free, hit cell occupied](https://github.com/user-attachments/assets/616cf8ff-7911-4044-98bc-3daf7c56bf57) <sub><b>Fig 3.</b> Inverse sensor model: free along the ray (before range), occupied at the terminal cell, unknown past the hit.</sub>
+<p align="center"><img src="https://github.com/user-attachments/assets/616cf8ff-7911-4044-98bc-3daf7c56bf57" width="500" alt="Fig 3 — Inverse sensor model: along-ray cells free, hit cell occupied" /></p>
+<sub><b>Fig 3.</b> Inverse sensor model: free along the ray (before range), occupied at the terminal cell, unknown past the hit.</sub>
 
 ---
 
