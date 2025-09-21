@@ -85,6 +85,8 @@ An **occupancy grid** divides the plane into small cells (meters per cell). Each
 <p align="center"><img src="https://github.com/user-attachments/assets/fb3e2a15-66c8-4108-8ccc-a82362c7f249" width="600" alt="Fig 2 — Grid in odom, LiDAR rays in laser, and projection to cells" /></p>
 <sub><b>Fig 2.</b> Cells are updated by projecting LiDAR rays from <code>laser</code> into the grid in <code>odom</code>.</sub>
 
+---
+
 <p align="center"><img src="https://github.com/user-attachments/assets/616cf8ff-7911-4044-98bc-3daf7c56bf57" width="600" alt="Fig 3 — Inverse sensor model: along-ray cells free, hit cell occupied" /></p>
 <sub><b>Fig 3.</b> Inverse sensor model: free along the ray (before range), occupied at the terminal cell, unknown past the hit.</sub>
 
