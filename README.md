@@ -67,7 +67,7 @@ $$
 \end{aligned}
 $$
 
-The C++ excerpt in `expermient_cpp_.txt` publishes both a TF ($\text{odom}\to\text{base\_link}$) and `nav_msgs/Odometry` with this fusion.
+The C++ excerpt in `expermient_cpp_.txt` publishes both a TF ($\text{odom}\to\text{base_link}$) and `nav_msgs/Odometry` with this fusion.
 
 ---
 
