@@ -5,6 +5,7 @@
 ---
 
 ## 🚗 Overview
+<p align="center"><img width="400" height="465" alt="SCR-20250930-nzgt" src="https://github.com/user-attachments/assets/f15f8c3e-723a-4d45-92e4-70df3422b88f" /></p>
 
 This project implements the classical **occupancy‑grid mapping** pipeline on a small autonomous platform. The mapper consumes:
 
