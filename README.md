@@ -19,7 +19,7 @@ and produces a planar grid in the fixed **odometry** frame (`odom`) whose cells 
 Repository layout:
 
 * `OccupancyGridMapping_.py` — ROS node (Python) that subscribes to Odometry and LaserScan, updates log‑odds per cell, and publishes a `nav_msgs/OccupancyGrid`.
-* `expermient_cpp_.txt` — wheel‑odometry (C++) logic used in a prior lab; included for context.
+* `experiment_cpp_.txt` — wheel‑odometry (C++) logic used in a prior lab; included for context.
 * `Activity4_.bag` — example rosbag recorded during mapping (for playback/inspection).
 
 ---
@@ -69,7 +69,7 @@ $$
 \end{aligned}
 $$
 
-The C++ excerpt in `expermient_cpp_.txt` publishes both a TF (odom to base_link) and `nav_msgs/Odometry` with this fusion.
+The C++ excerpt in `experiment_cpp_.txt` publishes both a TF (odom to base_link) and `nav_msgs/Odometry` with this fusion.
 
 ---
 

@@ -63,7 +63,7 @@ private:
     std_msgs::Float64 servo_msg;
     std_msgs::Float64 brake_msg;
 
-    std_msgs::Float64 last_servo_state; // Last recived servo state
+    std_msgs::Float64 last_servo_state; // Last received servo state
     vesc_msgs::VescStateStamped last_vesc_state; // Last received vesc state
 
     // Define a new variable of nav_msgs::Odometry type for publishing odometry messages
@@ -74,7 +74,7 @@ private:
     double speed_to_erpm_gain, speed_to_erpm_offset,
         steering_angle_to_servo_gain, steering_angle_to_servo_offset, wheelbase;
     
-    // Some Odomtery related variables
+    // Some odometry-related variables
 
     double yaw=0.0;double x_odom=0.0;double y_odom=0.0;
     bool    waiting_on_init_yaw = true; // you can use this variable to wait on the initial yaw reading at t = 0
@@ -151,10 +151,10 @@ RacecarExperiment() {
     vesc_state_sub= n.subscribe("/sensors/core", 1, &RacecarExperiment::vesc_callback, this);
     servo_sub= n.subscribe("/sensors/servo_position_command", 1,&RacecarExperiment::servo_callback, this);
   
-   // Start a subsriber to lidar
+   // Start a subscriber to lidar
     lidar_sub = n.subscribe("/scan2", 1, &RacecarExperiment::laser_callback, this);
  
-   // Star a subscriber ro IMU
+   // Start a subscriber to IMU
     imu_sub= n.subscribe(imu_topic, 1, &RacecarExperiment::imu_callback, this);
 
    // Start a subscriber to listen to mux messages
@@ -220,7 +220,7 @@ RacecarExperiment() {
  
 
 
-        // calc the time step between two concecutive time step.
+        // Time step between two consecutive odometry updates.
         ros::Duration dt = state.header.stamp - last_vesc_state.header.stamp;
 
        // save state for next time
@@ -228,7 +228,7 @@ RacecarExperiment() {
 
 
 
-    // Implment the integration for x & y wheel odometry here; use dt.toSec() to convert the time step into seconds
+    // Implement the integration for x & y wheel odometry here; use dt.toSec() to convert the time step into seconds
     // For yaw, subtract the IMU yaw measurement at t=0 from its current time measurement and pass that as the vehicle yaw angle; 
     	double v_yaw = imu_yaw - init_yaw; //Subtracts yaw measurement at t=0 from current time measurement
 	double x_dot = current_speed * cos(v_yaw) * dt.toSec();
@@ -305,7 +305,7 @@ RacecarExperiment() {
         tfScalar yaw, pitch, roll;
         tf::Matrix3x3(quat).getRPY(roll, pitch, yaw);
 
-// The following IF statment is meant to catch the initial IMU reading at t=0, init_yaw. This offest should be subtracted from future readings to compute vehicle yaw angle
+// The following IF statement catches the initial IMU reading at t=0 (init_yaw). This offset is subtracted from future readings to compute vehicle yaw angle
         if (waiting_on_init_yaw)
           {
             init_yaw = yaw;
@@ -319,7 +319,7 @@ RacecarExperiment() {
 
 
     void mux_callback(const std_msgs::Int32MultiArray & msg) {
-        // Publish zero command when emergency brake is activeted
+        // Publish zero command when emergency brake is activated
         for (int i = 0; i < mux_size; i++) {
             mux_controller[i] = bool(msg.data[i]);
         }
